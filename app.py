@@ -13,7 +13,7 @@ st.markdown("Analyzing customer purchasing behavior using **RFM Segmentation**."
 @st.cache_data
 def load_data():
     # Load the specific file you have
-    df = pd.read_csv("Superstore-Sales.csv")
+  df = pd.read_csv("Superstore-Sales.csv", encoding='ISO-8859-1')
     
     # Fix Date Format
     df['Order Date'] = pd.to_datetime(df['Order Date'], format='%m/%d/%Y', errors='coerce')
@@ -90,4 +90,5 @@ try:
     st.plotly_chart(fig_segment, use_container_width=True)
 
 except FileNotFoundError:
+
     st.error("The file 'Superstore-Sales.csv' was not found. Please upload it to your GitHub repository.")
