@@ -9,13 +9,12 @@ st.title("📊 Executive Sales Dashboard")
 st.markdown("Analyzing customer purchasing behavior using **RFM Segmentation**.")
 
 # --- DATA LOADING ---
-# We use a function to cache the data so the app runs faster
 @st.cache_data
 def load_data():
-    # Load the specific file you have
-  df = pd.read_csv("Superstore-Sales.csv", encoding='ISO-8859-1')
+    # 1. Load data with the correct encoding to fix the Unicode error
+    df = pd.read_csv("Superstore-Sales.csv", encoding='ISO-8859-1')
     
-    # Fix Date Format
+    # 2. Fix Date Format
     df['Order Date'] = pd.to_datetime(df['Order Date'], format='%m/%d/%Y', errors='coerce')
     return df
 
@@ -24,13 +23,18 @@ try:
     
     # --- SIDEBAR FILTERS ---
     st.sidebar.header("Filter Data")
-    region = st.sidebar.multiselect(
-        "Select Region",
-        options=df['Region'].unique(),
-        default=df['Region'].unique()
-    )
     
-    df_selection = df.query("Region == @region")
+    # Check if Region exists, otherwise skip filter
+    if 'Region' in df.columns:
+        region = st.sidebar.multiselect(
+            "Select Region",
+            options=df['Region'].unique(),
+            default=df['Region'].unique()
+        )
+        df_selection = df.query("Region == @region")
+    else:
+        st.warning("Column 'Region' not found in dataset. Showing all data.")
+        df_selection = df
 
     # --- TOP KPI METRICS ---
     total_sales = df_selection['Sales'].sum()
@@ -49,8 +53,7 @@ try:
 
     with c1:
         st.subheader("Sales Trends Over Time")
-        # Group by month to make the chart readable
-        monthly_sales = df_selection.set_index('Order Date').resample('M')['Sales'].sum().reset_index()
+        monthly_sales = df_selection.set_index('Order Date').resample('ME')['Sales'].sum().reset_index()
         fig_trend = px.line(monthly_sales, x='Order Date', y='Sales', markers=True)
         st.plotly_chart(fig_trend, use_container_width=True)
 
@@ -59,11 +62,12 @@ try:
         fig_cat = px.bar(df_selection, x='Product Category', y='Profit', color='Product Category')
         st.plotly_chart(fig_cat, use_container_width=True)
 
-    # --- ADVANCED: RFM ANALYSIS (Hidden Complexity) ---
+    # --- ADVANCED: RFM ANALYSIS ---
     st.subheader("🏆 Top Customer Segments")
     
-    # RFM Calculation inside the app
     snapshot_date = df_selection['Order Date'].max() + dt.timedelta(days=1)
+    
+    # Use Customer Name since ID is missing
     rfm = df_selection.groupby('Customer Name').agg({
         'Order Date': lambda x: (snapshot_date - x.max()).days,
         'Order ID': 'count',
@@ -71,9 +75,6 @@ try:
     })
     rfm.columns = ['Recency', 'Frequency', 'Monetary']
     
-    # Simple Segmentation for Display
-    # Top 25% of Spenders = 'Gold'
-    # Bottom 25% of Spenders = 'Bronze'
     quartiles = rfm['Monetary'].quantile([0.25, 0.75])
     
     def simple_segment(row):
@@ -83,12 +84,10 @@ try:
     
     rfm['Segment'] = rfm.apply(simple_segment, axis=1)
     
-    # Show the Segment Chart
     fig_segment = px.scatter(rfm, x='Recency', y='Monetary', color='Segment', 
-                             title="Recency vs Monetary Value (Who buys often & spends more?)",
+                             title="Recency vs Monetary Value",
                              hover_data=['Frequency'])
     st.plotly_chart(fig_segment, use_container_width=True)
 
-except FileNotFoundError:
-
-    st.error("The file 'Superstore-Sales.csv' was not found. Please upload it to your GitHub repository.")
+except Exception as e:
+    st.error(f"Error loading data: {e}")
